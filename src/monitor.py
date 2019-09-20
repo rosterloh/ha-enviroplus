@@ -28,6 +28,8 @@ display = Display()
 sensors = Sensors()
 
 class ProgramKilled(Exception):
+    client.loop_stop()
+    client.disconnect()
     pass
 
 def signal_handler(signum, frame):
@@ -46,6 +48,7 @@ class Job(threading.Thread):
     def stop(self):
         self.stopped.set()
         self.join()
+
     def run(self):
         while not self.stopped.wait(self.interval.total_seconds()):
             self.execute(*self.args, **self.kwargs)
@@ -65,7 +68,7 @@ def as_local(dattim: dt.datetime) -> dt.datetime:
 
 def updateSensors():
     values = sensors.read_values()
-    display.display_text("temperature", float(values["raw_temperature"]), "°C")
+    display.display_text("temperature", values["raw_temperature"], "°C")
     values["disk_use"] = str(psutil.disk_usage('/').percent)
     values["memory_use"] = str(psutil.virtual_memory().percent)
     values["cpu_usage"] = str(psutil.cpu_percent(interval=None))
@@ -188,7 +191,7 @@ if __name__ == "__main__":
         try:
             time.sleep(1)
         except ProgramKilled:
-            print ("Program killed: running cleanup code")
+            print("Program killed: running cleanup code")
             sys.stdout.flush()
             job.stop()
             break
