@@ -3,9 +3,9 @@ Description=Enviro+ Monitor Service
 After=multi-user.target
 
 [Service]
-Type=simple
+User=pi
+Type=idle
 ExecStart=/usr/bin/python3 /home/pi/ha-enviroplus/src/monitor.py
-Restart=on-failure
 
 [Install]
 WantedBy=multi-user.target
