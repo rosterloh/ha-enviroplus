@@ -8,14 +8,15 @@ import threading, time, signal
 from datetime import timedelta
 import datetime as dt
 import paho.mqtt.client as mqtt
-import pytz
-from pytz import timezone
+from pytz import utc, timezone
 from json import dumps
+import logging
+from systemd.journal import JournalHandler
 from display import Display
 from sensors import Sensors
+
 __version__ = '0.0.1'
 
-UTC = pytz.utc
 DEFAULT_TIME_ZONE = timezone('Europe/London')
 broker_url = "hassio.local"
 broker_port = 1883
@@ -24,6 +25,10 @@ client = mqtt.Client(client_id=deviceName)
 client.username_pw_set("hass", "QV*4$YqajXvf")
 SYSFILE = '/sys/devices/platform/soc/soc:firmware/get_throttled'
 WAIT_TIME_SECONDS = 60
+logger = logging.getLogger(__name__)
+logger.propagate = False
+logger.addHandler(JournalHandler())
+logger.setLevel(logging.INFO)
 display = Display()
 sensors = Sensors()
 
@@ -55,14 +60,14 @@ class Job(threading.Thread):
 
 def utc_from_timestamp(timestamp: float) -> dt.datetime:
     """Return a UTC time from a timestamp."""
-    return UTC.localize(dt.datetime.utcfromtimestamp(timestamp))
+    return utc.localize(dt.datetime.utcfromtimestamp(timestamp))
 
 def as_local(dattim: dt.datetime) -> dt.datetime:
     """Convert a UTC datetime object to local time zone."""
     if dattim.tzinfo == DEFAULT_TIME_ZONE:
         return dattim
     if dattim.tzinfo is None:
-        dattim = UTC.localize(dattim)
+        dattim = utc.localize(dattim)
 
     return dattim.astimezone(DEFAULT_TIME_ZONE)
 
@@ -123,13 +128,11 @@ def create_payload(name, unit, value, uid, model, manufacturer, device_class = N
     return dumps(data)
 
 def on_connect(client, userdata, flags, rc):
-    print("Connected with result code " + str(rc))
+    logger.info("Connected to MQTT with result code %s", str(rc))
 
 def on_message(client, userdata, message):
-    print("message received ", str(message.payload.decode("utf-8")))
-    print("message topic=", message.topic)
-    print("message qos=", message.qos)
-    print("message retain flag=", message.retain)
+    logger.info("message received %s", str(message.payload.decode("utf-8")))
+    logger.info("message topic=%s", message.topic)
 
 if __name__ == "__main__":
     signal.signal(signal.SIGTERM, signal_handler)
@@ -146,6 +149,46 @@ if __name__ == "__main__":
     client.publish(
         topic="homeassistant/sensor/"+ deviceName +"/"+ deviceName +"Humidity/config",
         payload=create_payload("Humidity", "%", "{{ value_json.humidity}}", "_sensor_humidity", "BME280", "Bosch", device_class="humidity"),
+        qos=1, retain=True
+    )
+    client.publish(
+        topic="homeassistant/sensor/"+ deviceName +"/"+ deviceName +"Pressure/config",
+        payload=create_payload("Pressure", "kPa", "{{ value_json.pressure}}", "_sensor_pressure", "BME280", "Bosch", device_class="pressure"),
+        qos=1, retain=True
+    )
+    client.publish(
+        topic="homeassistant/sensor/"+ deviceName +"/"+ deviceName +"Light/config",
+        payload=create_payload("Light", "lux", "{{ value_json.light}}", "_sensor_light", "LTR-559", "Lite-On", device_class="illuminance"),
+        qos=1, retain=True
+    )
+    client.publish(
+        topic="homeassistant/sensor/"+ deviceName +"/"+ deviceName +"Oxidising/config",
+        payload=create_payload("Oxidising", "Ohms", "{{ value_json.oxidising}}", "_sensor_gas_oxidising", "MICS6814", "SGX Sensortech"),
+        qos=1, retain=True
+    )
+    client.publish(
+        topic="homeassistant/sensor/"+ deviceName +"/"+ deviceName +"Reducing/config",
+        payload=create_payload("Reducing", "Ohms", "{{ value_json.reducing}}", "_sensor_gas_reducing", "MICS6814", "SGX Sensortech"),
+        qos=1, retain=True
+    )
+    client.publish(
+        topic="homeassistant/sensor/"+ deviceName +"/"+ deviceName +"NH3/config",
+        payload=create_payload("NH3", "Ohms", "{{ value_json.nh3}}", "_sensor_gas_nh3", "MICS6814", "SGX Sensortech"),
+        qos=1, retain=True
+    )
+    client.publish(
+        topic="homeassistant/sensor/"+ deviceName +"/"+ deviceName +"PM1/config",
+        payload=create_payload("PM1", "ug/m3", "{{ value_json.pm1}}", "_sensor_pm1", "PMS5003", "Plantower"),
+        qos=1, retain=True
+    )
+    client.publish(
+        topic="homeassistant/sensor/"+ deviceName +"/"+ deviceName +"PM25/config",
+        payload=create_payload("PM2.5", "ug/m3", "{{ value_json.pm25}}", "_sensor_pm25", "PMS5003", "Plantower"),
+        qos=1, retain=True
+    )
+    client.publish(
+        topic="homeassistant/sensor/"+ deviceName +"/"+ deviceName +"PM10/config",
+        payload=create_payload("PM10", "ug/m3", "{{ value_json.pm10}}", "_sensor_pm10", "PMS5003", "Plantower"),
         qos=1, retain=True
     )
     client.publish(
@@ -191,7 +234,7 @@ if __name__ == "__main__":
         try:
             time.sleep(1)
         except ProgramKilled:
-            print("Program killed: running cleanup code")
+            logger.warning("Program killed: running cleanup code")
             sys.stdout.flush()
             job.stop()
             break

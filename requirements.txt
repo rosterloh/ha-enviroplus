@@ -1,9 +1,10 @@
 paho-mqtt>=1.4.0
 psutil>=5.6.3
 pytz>=2019.2
+systemd-python>=234
 Pillow>=6.1.0
-pimoroni-bme280
-pms5003
-ltr559
-st7735
-ads1015
+pimoroni-bme280>=0.0.2
+pms5003>=0.0.4
+ltr559>=0.1.0
+st7735>=0.0.3
+ads1015>=0.0.4
